@@ -1,0 +1,2 @@
+# 精准忽略指定的大文件
+data/eod_prices.parquet

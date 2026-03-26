@@ -129,3 +129,45 @@ def plot_results(portfolio_values, benchmark_values, dates, title='Backtest Resu
     fig.update_xaxes(title_text='Date', row=2, col=1)
 
     fig.show()
+
+
+def calc_factors(price_group, div_group):
+    """
+    为单个股票计算每个交易日的三个股息因子
+    :param price_group: 该股票的价格数据，已按 trade_date 排序
+    :param div_group: 该股票的分红数据
+    :return: 包含因子结果的 DataFrame
+    """
+    results = []
+    for _, row in price_group.iterrows():
+        trade_date = row['trade_date']
+        close_price = row['close_price']
+        if close_price == 0:
+            expected = static = dynamic = 0.0
+        else:
+            # 预期股息率：announce_date 在 (trade_date-365, trade_date] 内
+            mask_exp = (div_group['announce_date'] > trade_date - pd.Timedelta(days=365)) & \
+                       (div_group['announce_date'] <= trade_date)
+            sum_exp = div_group.loc[mask_exp, 'div_pre_tax'].sum()
+            expected = sum_exp / close_price
+
+            # 静态股息率：ex_date < trade_date 且 div_year = 当前年份-1
+            prev_year = trade_date.year - 1
+            mask_static = (div_group['ex_date'] < trade_date) & (div_group['div_year'] == prev_year)
+            sum_static = div_group.loc[mask_static, 'div_pre_tax'].sum()
+            static = sum_static / close_price
+
+            # 动态股息率：ex_date 在 (trade_date-365, trade_date] 内
+            mask_dyn = (div_group['ex_date'] > trade_date - pd.Timedelta(days=365)) & \
+                       (div_group['ex_date'] <= trade_date)
+            sum_dyn = div_group.loc[mask_dyn, 'div_pre_tax'].sum()
+            dynamic = sum_dyn / close_price
+
+        results.append({
+            'stock_code': row['stock_code'],
+            'trade_date': trade_date,
+            'expected_div_yield': expected,
+            'static_div_yield': static,
+            'dynamic_div_yield': dynamic
+        })
+    return pd.DataFrame(results)

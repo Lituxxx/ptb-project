@@ -8,3 +8,4 @@ eod_prices文件因为太大没有放进来，项目同步时需要手动上传
 
 data_analysis.ipynb记录数据初步分析，report.ipynb记录两类因子的回测初步结果，util.py记录公用工具函数
 选股情况记录在records/目录下
+红利+低波因子composite基准为等权z-score；目前使用的复合方式是使用IC加权；低波因子采用1/log（downside deviation）的方式

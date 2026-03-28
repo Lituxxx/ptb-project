@@ -6,7 +6,9 @@
 
 eod_prices文件因为太大没有放进来，项目同步时需要手动上传
 
-data_analysis.ipynb记录数据初步分析，report.ipynb记录两类因子的回测初步结果，util.py记录公用工具函数
+util.py记录公用工具函数
+
+mv.ipynb记录小市值单因子回测
 
 选股情况记录在records/目录下
 

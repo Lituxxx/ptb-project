@@ -5,10 +5,10 @@ from plotly.subplots import make_subplots
 
 def load_and_preprocess_price(file_path):
     """
-    Load price data from CSV/Parquet, parse dates, and return a DataFrame.
+    Load price data from Parquet, parse dates, and return a DataFrame.
     Expected columns: stock_code, trade_date, adjusted_close
     """
-    df = pd.read_parquet(file_path) if file_path.endswith('.parquet') else pd.read_csv(file_path, parse_dates=['trade_date'])
+    df = pd.read_parquet(file_path)
     df = df[['stock_code', 'trade_date', 'adjusted_close']].copy()
     df.sort_values(['stock_code', 'trade_date'], inplace=True)
     return df
@@ -18,7 +18,7 @@ def load_selection(file_path):
     Load selection data from Excel, parse dates, and return a DataFrame.
     Expected columns: trade_date, stock_code, selection_rank
     """
-    df = pd.read_excel(file_path, parse_dates=['trade_date'])
+    df = pd.read_parquet(file_path)
     df = df[['trade_date', 'stock_code', 'selection_rank']].copy()
     df.sort_values(['trade_date', 'selection_rank'], inplace=True)
     return df
@@ -89,22 +89,80 @@ def compute_metrics(returns_series, rf=0, periods_per_year=252):
         'Max Drawdown': max_drawdown
     }
 
-def plot_results(portfolio_values, benchmark_values, dates, title='Backtest Results'):
+# def plot_results(portfolio_values, benchmark_values, dates, title='Backtest Results'):
+#     """
+#     Plot portfolio equity curve vs benchmark, and drawdown.
+#     portfolio_values, benchmark_values: Series with datetime index
+#     dates: list or index of dates (optional, can use index from series)
+#     """
+#     # Use index if dates not provided
+#     if dates is None:
+#         dates = portfolio_values.index
+
+#     fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
+#                         vertical_spacing=0.05,
+#                         row_heights=[0.7, 0.3],
+#                         subplot_titles=('Equity Curve', 'Drawdown'))
+
+#     # Equity curve
+#     fig.add_trace(go.Scatter(x=dates, y=portfolio_values,
+#                              mode='lines', name='Portfolio'),
+#                   row=1, col=1)
+#     fig.add_trace(go.Scatter(x=dates, y=benchmark_values,
+#                              mode='lines', name='Benchmark (Avg Stock)'),
+#                   row=1, col=1)
+
+#     # Drawdown
+#     portfolio_returns = portfolio_values.pct_change().dropna()
+#     cumulative = (1 + portfolio_returns).cumprod()
+#     peak = cumulative.expanding().max()
+#     drawdown = (cumulative - peak) / peak
+#     fig.add_trace(go.Scatter(x=dates[1:], y=drawdown,
+#                              mode='lines', name='Drawdown', fill='tozeroy'),
+#                   row=2, col=1)
+
+#     fig.update_layout(title=title, height=800,
+#                       hovermode='x unified',
+#                       showlegend=True)
+#     fig.update_yaxes(title_text='Cumulative Return', row=1, col=1)
+#     fig.update_yaxes(title_text='Drawdown', row=2, col=1, tickformat='.0%')
+#     fig.update_xaxes(title_text='Date', row=2, col=1)
+
+#     fig.show()
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+def plot_results(portfolio_values, benchmark_values, dates=None, title='Backtest Results', plot_excess=False):
     """
-    Plot portfolio equity curve vs benchmark, and drawdown.
-    portfolio_values, benchmark_values: Series with datetime index
-    dates: list or index of dates (optional, can use index from series)
+    Plot portfolio equity curve vs benchmark, drawdown, and optionally cumulative excess returns.
+    
+    Parameters:
+    portfolio_values: Series with datetime index (portfolio equity)
+    benchmark_values: Series with datetime index (benchmark equity)
+    dates: list or index of dates (optional, uses index from portfolio_values if None)
+    title: str, plot title
+    plot_excess: bool, if True adds a subplot for cumulative excess returns
     """
     # Use index if dates not provided
     if dates is None:
         dates = portfolio_values.index
 
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
-                        vertical_spacing=0.05,
-                        row_heights=[0.7, 0.3],
-                        subplot_titles=('Equity Curve', 'Drawdown'))
+    # Determine number of rows and heights
+    if plot_excess:
+        rows = 3
+        row_heights = [0.5, 0.25, 0.25]  # equity, excess, drawdown
+        subplot_titles = ('Equity Curve', 'Cumulative Excess Return', 'Drawdown')
+    else:
+        rows = 2
+        row_heights = [0.7, 0.3]
+        subplot_titles = ('Equity Curve', 'Drawdown')
 
-    # Equity curve
+    fig = make_subplots(rows=rows, cols=1, shared_xaxes=True,
+                        vertical_spacing=0.05,
+                        row_heights=row_heights,
+                        subplot_titles=subplot_titles)
+
+    # Equity curve (row 1)
     fig.add_trace(go.Scatter(x=dates, y=portfolio_values,
                              mode='lines', name='Portfolio'),
                   row=1, col=1)
@@ -112,24 +170,45 @@ def plot_results(portfolio_values, benchmark_values, dates, title='Backtest Resu
                              mode='lines', name='Benchmark (Avg Stock)'),
                   row=1, col=1)
 
-    # Drawdown
+    # Drawdown (last row)
     portfolio_returns = portfolio_values.pct_change().dropna()
     cumulative = (1 + portfolio_returns).cumprod()
     peak = cumulative.expanding().max()
     drawdown = (cumulative - peak) / peak
-    fig.add_trace(go.Scatter(x=dates[1:], y=drawdown,
+    drawdown_dates = portfolio_returns.index  # same as dates[1:]
+    fig.add_trace(go.Scatter(x=drawdown_dates, y=drawdown,
                              mode='lines', name='Drawdown', fill='tozeroy'),
-                  row=2, col=1)
+                  row=rows, col=1)
 
-    fig.update_layout(title=title, height=800,
-                      hovermode='x unified',
-                      showlegend=True)
-    fig.update_yaxes(title_text='Cumulative Return', row=1, col=1)
-    fig.update_yaxes(title_text='Drawdown', row=2, col=1, tickformat='.0%')
-    fig.update_xaxes(title_text='Date', row=2, col=1)
+    # Excess returns (if requested)
+    if plot_excess:
+        # Compute daily returns for both series
+        port_ret = portfolio_values.pct_change().dropna()
+        bench_ret = benchmark_values.pct_change().dropna()
+        # Align indices (they should be the same, but just in case)
+        common_idx = port_ret.index.intersection(bench_ret.index)
+        if len(common_idx) == 0:
+            raise ValueError("No overlapping dates for excess returns calculation.")
+        port_ret = port_ret.loc[common_idx]
+        bench_ret = bench_ret.loc[common_idx]
+        # Cumulative excess returns (geometric)
+        excess_ret = (1 + port_ret) / (1 + bench_ret) - 1
+        cumulative_excess = (1 + excess_ret).cumprod() - 1
+        fig.add_trace(go.Scatter(x=common_idx, y=cumulative_excess,
+                                 mode='lines', name='Cumulative Excess Return',
+                                 fill='tozeroy'),
+                      row=2, col=1)
+        # Set y-axis format as percentage
+        fig.update_yaxes(title_text='Cumulative Excess', row=2, col=1, tickformat='.1%')
+
+    # Format axes
+    fig.update_layout(title=title, height=800 if rows==3 else 700,
+                      hovermode='x unified', showlegend=True)
+    fig.update_yaxes(title_text='Cumulative Return', row=1, col=1, tickformat='.0f')
+    fig.update_yaxes(title_text='Drawdown', row=rows, col=1, tickformat='.0%')
+    fig.update_xaxes(title_text='Date', row=rows, col=1)
 
     fig.show()
-
 
 def calc_factors(price_group, div_group):
     """

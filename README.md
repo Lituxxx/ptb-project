@@ -10,6 +10,8 @@ util.py记录公用工具函数
 
 mv.ipynb记录小市值单因子回测
 
+dvd.ipynb记录红利单因子回测
+
 选股情况记录在records/目录下
 
 红利+低波因子composite基准为等权z-score；目前使用的复合方式是使用IC加权；低波因子采用1/log（downside deviation）的方式
